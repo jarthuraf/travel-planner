@@ -1,4 +1,11 @@
+import json
+
 from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from utils.planner import generate_daily_plan
+from utils.budget import calculate_daily_budget, budget_category
 
 console = Console()
 
@@ -8,21 +15,45 @@ class Trip:
         self.destination = destination
         self.budget = budget
         self.days = days
-        self.style = style
+        self.style = style.lower()
 
     def budget_per_day(self):
-        return self.budget / self.days
+        return calculate_daily_budget(self.budget, self.days)
+    
+    def budget_type(self):
+        return budget_category(self.budget_per_day())
+    
+    def generate_itinerary(self):
+        return generate_daily_plan(self.days, self.style)
+    
+    def save_trip(self):
+        trip_data = {
+            "destination": self.destination,
+            "budget": self.budget,
+            "days": self.days,
+            "style": self.style
+        }
 
-    def summary(self):
-        return (
-            f"\nTrip to {self.destination}\n"
-            f"Budget: ${self.budget}\n"
-            f"Days: {self.days}\n"
-            f"Style: {self.style}\n"
-            f"Daily Budget: ${self.budget_per_day():.2f}\n"
-        )
+        filename = f"saved_trips/{self.destination.lower()}_trip.json"
+        with open(filename, "w") as file:
+            json.dump(trip_data, file, indent=4)
+
+    def summary_table(self):
+        table = Table(title="Trip Summary")
+
+        table.add_column("Category", style="cyan")
+        table.add_column("Details", style="green")
+
+        table.add_row("Destination", self.destination)
+        table.add_row("Budget", f"${self.budget}")
+        table.add_row("Days", str(self.days))
+        table.add_row("Style", self.style.title())
+        table.add_row("Daily Budget", f"${self.budget_per_day()}")
+        table.add_row("Budget Type", self.budget_type())
+
+        return table
     
-    
+
 # Function to get user input for destination
 def get_destination():
     destination = input("Enter destination: ").strip()
@@ -34,43 +65,66 @@ def get_destination():
 
 
 # Function to get user input for budget
-def calculate_budget(budget, days):
+def get_budget():
+    budget = float(input("Total Budget: "))
+
+    if budget <= 0:
+        raise ValueError("Budget must be positive.")
+
+    return budget
+
+
+# Function to get user input for number of days
+def get_days():
+    days = int(input("Number of Days: "))
+
     if days <= 0:
-        raise ValueError("Days must be greater than 0.")
+        raise ValueError("Days must be greater than zero.")
 
-    return budget / days
+    return days
 
 
-# Function to generate a travel itinerary based on the trip details
-def generate_itinerary(days, style):
-    itinerary = []
+# Function to get user input for travel style
+def get_style():
+    style = input(
+        "Travel Style (luxury, budget, adventure, cultural): "
+    ).lower()
 
-    for day in range(1, days + 1):
-        itinerary.append(f"Day {day}: Enjoy a {style} activity.")
+    valid_styles = ["luxury", "budget", "adventure", "cultural"]
 
-    return itinerary
+    if style not in valid_styles:
+        raise ValueError("Invalid travel style.")
+
+    return style
 
 
 # Main function to run the travel planner
 def main():
-    console.print("[bold cyan]Travel Planner[/bold cyan]")
+    console.print(
+        Panel.fit(
+            "[bold cyan]Travel Planner[/bold cyan]",
+            border_style="blue"
+        )
+    )
 
     try:
         destination = get_destination()
-        budget = float(input("Enter your total budget: "))
-        days = int(input("Enter number of days: "))
-        style = input("Travel style (luxury, budget, adventure): ")
+        budget = get_budget()
+        days = get_days()
+        style = get_style()
 
         trip = Trip(destination, budget, days, style)
 
-        console.print(trip.summary())
+        console.print(trip.summary_table())
 
-        itinerary = generate_itinerary(days, style)
+        console.print("\n[bold green]Suggested Itinerary[/bold green]")
 
-        console.print("[bold green]Suggested Itinerary:[/bold green]")
+        itinerary = trip.generate_itinerary()
 
         for item in itinerary:
-            console.print(item)
+            console.print(f"- {item}")
+        trip.save_trip()
+        console.print(f"\n[bold blue]Trip saved successfully![/bold blue]")
 
     except ValueError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
