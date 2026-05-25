@@ -1,12 +1,13 @@
 import json
 
+from pygments import style
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from utils.planner import generate_daily_plan
 from utils.budget import calculate_daily_budget, budget_category
-from utils.api import get_weather
+from utils.api import get_weather, get_local_attractions, get_coordinates
 
 console = Console()
 
@@ -24,9 +25,6 @@ class Trip:
     
     def budget_type(self):
         return budget_category(self.budget_per_day())
-    
-    def generate_itinerary(self):
-        return generate_daily_plan(self.days, self.style)
     
     def save_trip(self):
         trip_data = {
@@ -143,9 +141,18 @@ def main():
 
         console.print(trip.summary_table())
 
+        # Getting local attractions based on style and coordinates
+        console.print("\n[bold yellow]Consulting local maps for attractions...[/bold yellow]")
+        coords = get_coordinates(destination)
+
+        real_places = []
+        if coords:
+            real_places = get_local_attractions(coords["lat"], coords["lon"], style)
+
+        # Generate itinerary using real attractions if available, otherwise fallback to predefined activities
         console.print("\n[bold green]Suggested Itinerary[/bold green]")
 
-        itinerary = trip.generate_itinerary()
+        itinerary = generate_daily_plan(days, style, real_attractions=real_places)
 
         for item in itinerary:
             console.print(f"- {item}")
